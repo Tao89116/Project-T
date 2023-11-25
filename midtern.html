@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    canvas {
+      border: 1px solid #000;
+      display: block;
+      margin: 20px auto;
+    }
+    button {
+      margin: 3px;
+      border: #000;
+      background-color: white;
+    }
+    #gameOverMessage {
+      font-size: 30px;
+      color: red;
+      display: none;
+    }
+  </style>
+  <title>111590450 陶冠丞 期中</title>
+</head>
+<body>
+  <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+  <div id="gameOverMessage">Game Over!</div>
+  <div style="text-align: center;">
+    <button onclick="startGame()"><img src="play.png" width="34" height="34"></button>
+    <button onclick="moveLeft()"><img src="left-arrow.png" width="30" height="30"></button>
+    <button onclick="moveRight()"><img src="right-arrow.png" width="30" height="30"></button>
+    <button onclick="rotate()"><img src="refresh.png" width="30" height="30"></button>
+    <button onclick="resetGame()"><img src="error.png" width="30" height="30"></button>
+    <button onclick="pauseGame()"><img src="pause.png" width="30" height="30"></button>
+  </div>
+  <div style="font-size:xx-small;"><a href="https://www.flaticon.com/free-icons/start" title="start icons">Start icons created by Fir3Ghost - Flaticon</a>
+    <a href="https://www.flaticon.com/free-icons/pause-button" title="pause button icons">Pause button icons created by Fir3Ghost - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/close" title="close icons">Close icons created by Fir3Ghost - Flaticon</a>
+    <a href="https://www.flaticon.com/free-icons/refresh" title="refresh icons">Refresh icons created by Fir3Ghost - Flaticon</a><br>
+    <a href="https://www.flaticon.com/free-icons/right-arrow" title="right arrow icons">Right arrow icons created by th studio - Flaticon</a>
+    <a href="https://www.flaticon.com/free-icons/left-arrow" title="left arrow icons">Left arrow icons created by th studio - Flaticon</a>
+  </div>
+  
+  <script>
+    const canvas = document.getElementById('tetrisCanvas');
+    const ctx = canvas.getContext('2d');
+    const blockSize = 30;
+    const rows = 20;
+    const columns = 10;
+    let board = createBoard();
+    let gameInterval;
+    let gameCeiling=2;
+    let moveDelay = 0; 
+    let isDragging = false; 
+    let dragStartX, dragStartY; 
+
+    function startGame() {
+      
+      if (!gameInterval) {
+        gameInterval = setInterval(() => {
+          moveDown();
+          draw();
+        }, 500);
+      }
+    }
+
+    function pauseGame() {
+      clearInterval(gameInterval);
+      gameInterval = null;
+    }
+
+    function resumeGame() {
+      if (!gameInterval) {
+        gameInterval = setInterval(() => {
+          moveDown();
+          draw();
+        }, 500);
+      }
+    }
+
+    document.addEventListener('keydown', (e) => { //上下左右鍵控制(上rotate)
+      if (e.code === 'ArrowUp') {
+        rotate();
+        draw();
+      } else if (e.code === 'ArrowDown') {
+        moveDown();
+        draw();
+      } else if (e.code === 'ArrowRight') {
+        moveRight();
+        draw();
+      } else if (e.code === 'ArrowLeft') {
+        moveLeft();
+        draw();
+      } else if (e.code === 'Space') {
+        pauseGame();
+      }
+    });
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+
+    function handleMouseDown(e) { //滑鼠拉動currentpiece
+      const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+      const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+
+      
+      if (
+        mouseX >= currentPiece.x * blockSize &&
+        mouseX < (currentPiece.x + currentPiece.shape[0].length) * blockSize &&
+        mouseY >= currentPiece.y * blockSize &&
+        mouseY < (currentPiece.y + currentPiece.shape.length) * blockSize
+      ) {
+        isDragging = true;
+        dragStartX = mouseX - currentPiece.x * blockSize;
+        dragStartY = mouseY - currentPiece.y * blockSize;
+      }
+    }
+
+    function handleMouseMove(e) {
+      if (isDragging) {
+        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+        const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+
+        
+        let newX = Math.floor((mouseX - dragStartX) / blockSize);
+        let newY = Math.floor((mouseY - dragStartY) / blockSize);
+
+        
+        newX = Math.max(0, Math.min(columns - currentPiece.shape[0].length, newX));
+        newY = Math.max(0, Math.min(rows - currentPiece.shape.length, newY));
+
+        
+        if (!collisionWithMatrix(currentPiece.shape, newX, newY)) {
+          
+          currentPiece.x = newX;
+          currentPiece.y = newY;
+        }
+
+        draw();
+      }
+    }
+
+    function handleMouseUp() {
+      isDragging = false;
+    }
+
+    function createBoard() {
+      return Array.from({ length: rows }, () => Array(columns).fill(0));
+    }
+
+    function drawSquare(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+      ctx.strokeStyle = '#000';
+      ctx.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+    }
+
+    function drawBoard() {
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          if (board[row][col] !== 0) {
+            drawSquare(col, row, board[row][col]);
+          }
+        }
+      }
+    }
+    function drawCeiling() {//遊戲天花板
+      ctx.fillStyle = '#FF0000'; 
+      ctx.fillRect(0, gameCeiling * blockSize, canvas.width, 1);
+    }
+    function drawGameOver() {
+      alert("Game Over!");//gameover跳出視窗顯示訊息
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawCeiling();
+      drawBoard();
+      if (isDragging) {
+        drawBoundingBox();
+      }
+      drawCurrentPiece();
+      if (isGameOver()) {
+        resetGame();
+        drawGameOver();
+      }
+    }
+
+    function drawBoundingBox() {//抓起的方格紅線圍著
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(
+        currentPiece.x * blockSize,
+        currentPiece.y * blockSize,
+        currentPiece.shape[0].length * blockSize,
+        currentPiece.shape.length * blockSize
+      );
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+    }
+
+    function drawCurrentPiece() {
+      currentPiece.shape.forEach((row, i) => {
+        row.forEach((cell, j) => {
+          if (cell !== 0) {
+            drawSquare(currentPiece.x + j, currentPiece.y + i, currentPiece.color);
+          }
+        });
+      });
+    }
+
+    function moveDown() {
+      currentPiece.y++;
+      if (collision()) { //掉落後狀態
+        currentPiece.y--;
+        mergePiece();
+        checkForLineClear();
+        spawnPiece();
+          if (currentPiece.y >= gameCeiling) { //若高於天花板gameover
+            drawGameOver();
+            return;
+          }
+      }
+    }
+
+    function moveRight() {
+      moveDelay++;
+      if (moveDelay >= 1) { 
+        currentPiece.x++;
+        if (collision()) {
+          currentPiece.x--;
+        }
+        moveDelay = 0;
+      }
+    }
+
+    function moveLeft() {
+      moveDelay++;
+      if (moveDelay >= 1) { 
+        currentPiece.x--;
+        if (collision()) {
+          currentPiece.x++;
+        }
+        moveDelay = 0;
+      }
+    }
+
+    function rotate() {//旋轉
+      const rotatedPiece = rotateMatrix(currentPiece.shape);
+      if (!collisionWithMatrix(rotatedPiece, currentPiece.x, currentPiece.y)) {
+        currentPiece.shape = rotatedPiece;
+      }
+    }
+
+    function rotateMatrix(matrix) {
+      const rows = matrix.length;
+      const cols = matrix[0].length;
+      const rotatedMatrix = Array.from({ length: cols }, () => Array(rows).fill(0));
+
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          rotatedMatrix[j][rows - 1 - i] = matrix[i][j];
+        }
+      }
+
+      return rotatedMatrix;
+    }
+
+    function collision() {
+      return collisionWithMatrix(currentPiece.shape, currentPiece.x, currentPiece.y);
+    }
+
+    function collisionWithMatrix(matrix, offsetX, offsetY) {
+      for (let i = 0; i < matrix.length; i++) {
+        for (let j = 0; j < matrix[i].length; j++) {
+          if (
+            matrix[i][j] !== 0 &&
+            (board[i + offsetY] && board[i + offsetY][j + offsetX]) !== 0
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function mergePiece() { //合併
+      currentPiece.shape.forEach((row, i) => {
+        row.forEach((cell, j) => {
+          if (cell !== 0) {
+            board[currentPiece.y + i][currentPiece.x + j] = currentPiece.color;
+          }
+        });
+      });
+    }
+
+    function checkForLineClear() {
+      for (let row = rows - 1; row >= 0; row--) {
+        if (board[row].every(cell => cell !== 0)) {
+          board.splice(row, 1);
+          board.unshift(Array(columns).fill(0));
+        }
+      }
+    }
+
+    function spawnPiece() { //隨機生成五種方塊
+      const pieces = [
+        { shape: [[1, 1, 1, 1]], color: 'cyan' },
+        { shape: [[0,1],[0,1],[1,1]], color: 'orange' },
+        { shape: [[1, 1], [1, 1]], color: 'yellow' },
+        { shape: [[1, 1, 1], [0, 1, 0]], color:'#944FDB' },
+        { shape: [[0,1], [1, 1],[1,0]], color: 'lightgreen' },
+      ];
+
+      const randomPiece = pieces[Math.floor(Math.random() * pieces.length)];
+      currentPiece = {
+        shape: randomPiece.shape,
+        color: randomPiece.color,
+        x: Math.floor((columns - randomPiece.shape[0].length) / 2),
+        y: 0,
+      };
+    }
+
+    function resetGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      board = createBoard();
+      spawnPiece();
+      pauseGame(); 
+      
+      const gameOverMessage = document.getElementById('gameOverMessage');
+      gameOverMessage.style.display = 'none';
+    }
+
+    function isGameOver() {
+      return collisionWithMatrix(currentPiece.shape, currentPiece.x, currentPiece.y);
+    }
+    
+    let currentPiece;
+    spawnPiece();
+  </script>
+</body>
+</html>
