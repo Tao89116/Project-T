@@ -300,6 +300,7 @@
         if (board[row].every(cell => cell !== 0)) {
           board.splice(row, 1);
           board.unshift(Array(columns).fill(0));
+          row++;
         }
       }
     }
