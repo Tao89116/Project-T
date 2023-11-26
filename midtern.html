@@ -296,7 +296,7 @@
     }
 
     function checkForLineClear() {
-      for (let row = rows - 1; row >= 0; row--) {
+      for (let row = rows -1; row >= 0; row--) {
         if (board[row].every(cell => cell !== 0)) {
           board.splice(row, 1);
           board.unshift(Array(columns).fill(0));
